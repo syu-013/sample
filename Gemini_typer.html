@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gravity Typer - Duel Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: #00ffcc;
+            font-family: 'Share Tech Mono', monospace;
+            user-select: none;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 共通UIスタイル */
+        .ui-overlay {
+            position: absolute;
+            pointer-events: none;
+            text-shadow: 0 0 5px rgba(0, 255, 204, 0.7);
+            transition: all 0.3s;
+        }
+
+        #score-display { top: 15px; left: 15px; font-size: 20px; z-index: 20; }
+        #health-display { top: 45px; left: 15px; font-size: 20px; color: #ff3366; text-shadow: 0 0 5px rgba(255, 51, 102, 0.7); z-index: 20; }
+        #level-display { top: 75px; left: 15px; font-size: 16px; color: #ffff00; z-index: 20; }
+
+        /* コントロールパネル */
+        #controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            gap: 10px;
+            z-index: 30;
+        }
+
+        .control-btn {
+            pointer-events: auto;
+            background: rgba(0, 20, 20, 0.8);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            padding: 5px 15px;
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: #00ffcc;
+            color: #000;
+        }
+
+        /* 中央パネル */
+        #center-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: auto;
+            z-index: 50;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .panel-bg {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 2.5rem;
+            border: 1px solid #00ffcc;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 0 30px rgba(0,255,204,0.15);
+        }
+
+        /* 難易度ボタン */
+        .difficulty-container {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .diff-btn {
+            flex: 1;
+            min-width: 120px;
+            background: transparent;
+            padding: 15px 10px;
+            font-size: 18px;
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 1px solid #555;
+            color: #aaa;
+        }
+
+        .diff-btn.easy { border-color: #00ffcc; color: #00ffcc; }
+        .diff-btn.normal { border-color: #ffcc00; color: #ffcc00; }
+        .diff-btn.hard { border-color: #ff3366; color: #ff3366; }
+
+        .diff-btn:hover { transform: scale(1.05); color: #000; }
+        .diff-btn.easy:hover { background: #00ffcc; box-shadow: 0 0 20px rgba(0, 255, 204, 0.6); }
+        .diff-btn.normal:hover { background: #ffcc00; box-shadow: 0 0 20px rgba(255, 204, 0, 0.6); }
+        .diff-btn.hard:hover { background: #ff3366; box-shadow: 0 0 20px rgba(255, 51, 102, 0.6); }
+
+        .main-btn {
+            background: transparent;
+            border: 2px solid #00ffcc;
+            color: #00ffcc;
+            padding: 10px 30px;
+            font-size: 20px;
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+            margin-top: 15px;
+        }
+        .main-btn:hover { background: #00ffcc; color: #000; box-shadow: 0 0 20px rgba(0, 255, 204, 0.8); }
+
+        .hidden { display: none !important; }
+
+        /* コンボ表示 */
+        #combo-display {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            opacity: 0;
+            transition: all 0.2s;
+            color: #ffff00;
+            text-shadow: 0 0 10px rgba(255, 255, 0, 0.8);
+            z-index: 10;
+        }
+
+        /* Glitch effect for title */
+        .glitch {
+            font-size: 56px;
+            font-weight: bold;
+            position: relative;
+            text-shadow: 2px 2px 0px #ff3366, -2px -2px 0px #00ffcc;
+            animation: glitch 1s infinite alternate-reverse;
+            margin-bottom: 5px;
+            line-height: 1.1;
+        }
+
+        @media (max-width: 600px) {
+            .glitch { font-size: 36px; }
+            #controls { flex-direction: column; gap: 5px; }
+            #score-display, #health-display { font-size: 16px; }
+            .difficulty-container { flex-direction: column; }
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px 2px 0px #ff3366, -2px -2px 0px #00ffcc; }
+            25% { text-shadow: -2px 2px 0px #ff3366, 2px -2px 0px #00ffcc; }
+            50% { text-shadow: 2px -2px 0px #ff3366, -2px 2px 0px #00ffcc; }
+            75% { text-shadow: -2px -2px 0px #ff3366, 2px 2px 0px #00ffcc; }
+            100% { text-shadow: 1px 1px 0px #ff3366, -1px -1px 0px #00ffcc; }
+        }
+
+        /* ポーズオーバーレイ */
+        #pause-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pause-text { font-size: 40px; letter-spacing: 5px; color: #fff; }
+
+        /* 回復エフェクト用 */
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="score-display" class="ui-overlay hidden">SCORE: 0</div>
+    <div id="health-display" class="ui-overlay hidden">CORE: 100%</div>
+    <div id="level-display" class="ui-overlay hidden">MODE: NORMAL</div>
+    <div id="combo-display" class="ui-overlay">COMBO x0</div>
+
+    <!-- Controls (Top Right) -->
+    <div id="controls" class="hidden">
+        <button id="pause-btn" class="control-btn">PAUSE (Esc)</button>
+        <button id="reset-btn" class="control-btn">RETRY</button>
+        <button id="quit-btn" class="control-btn">QUIT</button>
+    </div>
+
+    <!-- Pause Overlay -->
+    <div id="pause-overlay" class="hidden">
+        <div class="panel-bg text-center">
+            <div class="pause-text mb-4">PAUSED</div>
+            <button id="resume-btn" class="main-btn">RESUME</button>
+        </div>
+    </div>
+
+    <!-- Start / Game Over Screen -->
+    <div id="center-ui" class="panel-bg">
+        <h1 id="game-title" class="glitch">GRAVITY TYPER</h1>
+        
+        <div id="game-content">
+            <p id="game-desc" class="text-sm md:text-base mb-6 text-gray-300">
+                1対1のハイスピード迎撃モード。<br>
+                コンボを繋げてフィーバー＆CORE回復を狙え。<br>
+                <span class="text-xs text-[#00ffcc] mt-2 block">※キーボード必須 | ESCで一時停止</span>
+            </p>
+
+            <div id="difficulty-select" class="difficulty-container">
+                <button class="diff-btn easy" onclick="startGame('EASY')">
+                    EASY<br><span class="text-xs">Short & Slow<br>Heal/5 Combo</span>
+                </button>
+                <button class="diff-btn normal" onclick="startGame('NORMAL')">
+                    NORMAL<br><span class="text-xs">Medium & Fast<br>Heal/10 Combo</span>
+                </button>
+                <button class="diff-btn hard" onclick="startGame('HARD')">
+                    HARD<br><span class="text-xs">Long & Extreme<br>Heal/20 Combo</span>
+                </button>
+            </div>
+            
+            <div id="final-score" class="text-2xl mb-4 hidden text-[#ff3366]">SCORE: 0</div>
+            
+            <div id="retry-container" class="hidden">
+                 <button onclick="startGame(currentDifficulty)" class="main-btn">RETRY SAME MODE</button>
+                 <div class="mt-4">
+                    <button onclick="quitGame()" class="text-sm text-gray-400 hover:text-white underline bg-transparent border-none cursor-pointer">SELECT DIFFICULTY</button>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="text" id="mobile-input" style="opacity: 0; position: absolute; top: -1000px;">
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const healthDisplay = document.getElementById('health-display');
+        const levelDisplay = document.getElementById('level-display');
+        const controls = document.getElementById('controls');
+        
+        const centerUI = document.getElementById('center-ui');
+        const difficultySelect = document.getElementById('difficulty-select');
+        const retryContainer = document.getElementById('retry-container');
+        const gameTitle = document.getElementById('game-title');
+        const gameDesc = document.getElementById('game-desc');
+        const finalScoreEl = document.getElementById('final-score');
+        const comboEl = document.getElementById('combo-display');
+        
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const pauseBtn = document.getElementById('pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const quitBtn = document.getElementById('quit-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+
+        // Game Constants
+        const ZOOM_LEVEL = 0.7; 
+
+        // Game Settings
+        const DIFFICULTIES = {
+            'EASY': { 
+                maxWords: 1, 
+                spawnRate: 1500, 
+                speedMin: 0.4, 
+                speedMax: 0.7, 
+                minLength: 3, 
+                maxLength: 5,
+                damage: 20, 
+                dodgeChance: 0.0, 
+                dodgeForce: 0,
+                healInterval: 5, // 5コンボで回復
+                color: '#00ffcc' 
+            },
+            'NORMAL': { 
+                maxWords: 1, 
+                spawnRate: 1200, 
+                speedMin: 0.7, 
+                speedMax: 1.1, 
+                minLength: 5, 
+                maxLength: 7,
+                damage: 25, 
+                dodgeChance: 0.02, 
+                dodgeForce: 2.5,
+                healInterval: 10, // 10コンボで回復
+                color: '#ffcc00' 
+            },
+            'HARD': { 
+                maxWords: 1, 
+                spawnRate: 800, 
+                speedMin: 1.1, 
+                speedMax: 1.6, 
+                minLength: 7, 
+                maxLength: 20, 
+                damage: 35, 
+                dodgeChance: 0.05, 
+                dodgeForce: 6.0,
+                healInterval: 20, // 20コンボで回復
+                color: '#ff3366' 
+            }
+        };
+
+        // Game State
+        let gameState = 'MENU';
+        let currentDifficulty = 'NORMAL';
+        let score = 0;
+        let health = 100;
+        let lastTime = 0;
+        let spawnTimer = 0;
+        let spawnInterval = 2000;
+        let difficultyMultiplier = 1;
+        let combo = 0;
+        
+        let floatingTexts = [];
+
+        // Entities
+        let words = [];
+        let particles = [];
+        let lasers = [];
+        let activeWordIndex = -1;
+
+        const wordList = [
+            // Short (3-4)
+            "box", "cpu", "net", "web", "app", "git", "api", "hub", "bug", "log", "run", "dev", "css", "png", "svg", "bin",
+            "code", "data", "file", "byte", "loop", "node", "java", "ruby", "perl", "bash", "null", "void", "true", "list",
+            // Medium (5-7)
+            "system", "matrix", "cyber", "flux", "orbit", "laser", "pixel", "virus", "binary", "analog", "vector", "scalar",
+            "plasma", "shield", "energy", "force", "light", "sound", "pulse", "static", "galaxy", "planet", "nebula", "comet", 
+            "meteor", "class", "method", "return", "throw", "catch", "debug", "deploy", "render", "state", "props", "effect",
+            "hacker", "cipher", "crypto", "token", "access", "denied", "grant", "proxy", "server", "client", "socket", "script",
+            // Long (8+)
+            "gravity", "quantum", "dimension", "function", "variable", "constant", "boolean", "promise", "interface", "component",
+            "firewall", "backdoor", "phishing", "malware", "spyware", "rootkit", "exploit", "protocol", "framework", "database",
+            "algorithm", "encryption", "bandwidth", "frequency", "resonance", "simulation", "processor", "interrupt", "exception"
+        ];
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function randomRange(min, max) { return Math.random() * (max - min) + min; }
+
+        function getSpawnPoint() {
+            const angle = Math.random() * Math.PI * 2;
+            const diagonal = Math.sqrt(canvas.width*canvas.width + canvas.height*canvas.height);
+            const radius = (diagonal / 2) / ZOOM_LEVEL + 100; 
+
+            return {
+                x: canvas.width / 2 + Math.cos(angle) * radius,
+                y: canvas.height / 2 + Math.sin(angle) * radius,
+                angle: angle
+            };
+        }
+
+        // --- Classes ---
+        class Word {
+            constructor(settings) {
+                const spawn = getSpawnPoint();
+                
+                const candidates = wordList.filter(w => w.length >= settings.minLength && w.length <= settings.maxLength);
+                const list = candidates.length > 0 ? candidates : wordList;
+                
+                this.text = list[Math.floor(Math.random() * list.length)];
+                
+                this.x = spawn.x;
+                this.y = spawn.y;
+                this.targetX = canvas.width / 2;
+                this.targetY = canvas.height / 2;
+                
+                this.baseSpeed = randomRange(settings.speedMin, settings.speedMax) * difficultyMultiplier * 1.2; 
+                this.damage = settings.damage;
+                
+                this.dodgeChance = settings.dodgeChance;
+                this.dodgeForce = settings.dodgeForce;
+                this.dodgeVelocity = { x: 0, y: 0 };
+                this.isDodging = false;
+                this.dodgeTimer = 0;
+
+                this.typedIndex = 0;
+                this.angle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+            }
+
+            update(deltaTime) {
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 40) return 'hit';
+
+                const idealAngle = Math.atan2(dy, dx);
+
+                if (this.dodgeForce > 0) {
+                    if (this.isDodging) {
+                        this.dodgeTimer -= deltaTime;
+                        this.dodgeVelocity.x *= 0.95;
+                        this.dodgeVelocity.y *= 0.95;
+                        if (this.dodgeTimer <= 0) this.isDodging = false;
+                    } else {
+                        if (Math.random() < this.dodgeChance) {
+                            this.isDodging = true;
+                            this.dodgeTimer = 500;
+                            const dodgeDir = Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2;
+                            const dodgeAngle = idealAngle + dodgeDir;
+                            this.dodgeVelocity.x = Math.cos(dodgeAngle) * this.dodgeForce * 3; 
+                            this.dodgeVelocity.y = Math.sin(dodgeAngle) * this.dodgeForce * 3;
+                        }
+                    }
+                }
+
+                const moveSpeed = this.baseSpeed * 0.1 * deltaTime;
+                this.x += Math.cos(idealAngle) * moveSpeed + this.dodgeVelocity.x;
+                this.y += Math.sin(idealAngle) * moveSpeed + this.dodgeVelocity.y;
+
+                return 'alive';
+            }
+
+            draw(index) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                // Visible logical width/height
+                const vw = canvas.width / ZOOM_LEVEL;
+                const vh = canvas.height / ZOOM_LEVEL;
+                const padding = 80;
+
+                // Logical Viewport Bounds
+                const minX = cx - vw / 2 + padding;
+                const maxX = cx + vw / 2 - padding;
+                const minY = cy - vh / 2 + padding;
+                const maxY = cy + vh / 2 - padding;
+
+                let drawX = this.x;
+                let drawY = this.y;
+                let isOffscreen = false;
+
+                // Check if word is logically offscreen
+                if (this.x < minX || this.x > maxX || this.y < minY || this.y > maxY) {
+                    isOffscreen = true;
+                    // Clamp to ellipse/circle for UI
+                    const angle = Math.atan2(this.y - cy, this.x - cx);
+                    const wRadius = vw / 2 - padding;
+                    const hRadius = vh / 2 - padding;
+                    // Use a slightly smaller ellipse for the bubble position
+                    drawX = cx + Math.cos(angle) * (wRadius);
+                    drawY = cy + Math.sin(angle) * (hRadius);
+                }
+
+                const isLocked = (index === activeWordIndex);
+
+                if (isOffscreen) {
+                    this.drawBubble(drawX, drawY, isLocked);
+                } else {
+                    this.drawNormal(drawX, drawY, isLocked);
+                }
+            }
+
+            drawBubble(x, y, isLocked) {
+                ctx.font = '28px "Share Tech Mono"';
+                const textWidth = ctx.measureText(this.text).width;
+                const bubbleW = textWidth + 40;
+                const bubbleH = 50;
+
+                ctx.save();
+                ctx.translate(x, y);
+
+                // Bubble Background
+                ctx.fillStyle = isLocked ? 'rgba(50, 0, 20, 0.9)' : 'rgba(20, 30, 40, 0.85)';
+                ctx.strokeStyle = isLocked ? '#ff3366' : '#00ffcc';
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                ctx.ellipse(0, 0, bubbleW / 2, bubbleH / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Direction Pointer (Tail) pointing towards the real word (outwards)
+                const angleToWord = Math.atan2(this.y - y, this.x - x);
+                const tailDist = bubbleH / 2 + 10;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angleToWord) * (bubbleH/2), Math.sin(angleToWord) * (bubbleH/2));
+                ctx.lineTo(Math.cos(angleToWord) * tailDist, Math.sin(angleToWord) * tailDist);
+                ctx.stroke();
+
+                // Text
+                this.drawText(0, 0, isLocked);
+                
+                ctx.restore();
+            }
+
+            drawNormal(x, y, isLocked) {
+                ctx.font = '32px "Share Tech Mono"'; 
+                const textWidth = ctx.measureText(this.text).width;
+                
+                if (this.isDodging) {
+                    ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+                } else if (isLocked) {
+                    ctx.fillStyle = 'rgba(100, 0, 50, 0.8)';
+                } else {
+                    ctx.fillStyle = 'rgba(0, 50, 50, 0.6)';
+                }
+                
+                ctx.fillRect(x - textWidth / 2 - 15, y - 35, textWidth + 30, 50);
+
+                ctx.save();
+                ctx.strokeStyle = isLocked ? '#ff0055' : '#00ffcc';
+                ctx.setLineDash(this.isDodging ? [2, 10] : [5, 5]);
+                ctx.lineWidth = isLocked ? 3 : 1;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.moveTo(canvas.width/2, canvas.height/2);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                const scopeSize = this.isDodging ? (textWidth/2 + 35) : (textWidth/2 + 25);
+                ctx.arc(x, y - 10, scopeSize, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.restore();
+
+                this.drawText(x, y, isLocked);
+            }
+
+            drawText(x, y, isLocked) {
+                const textWidth = ctx.measureText(this.text).width;
+                const typed = this.text.substring(0, this.typedIndex);
+                const remaining = this.text.substring(this.typedIndex);
+                const startX = x - textWidth / 2;
+
+                // Center vertical adjustment
+                const textY = y + 10; 
+
+                ctx.fillStyle = '#ff3366'; // Typed Color
+                ctx.fillText(typed, startX, textY);
+
+                const typedWidth = ctx.measureText(typed).width;
+                
+                if (isLocked) ctx.fillStyle = '#ffffff';
+                else ctx.fillStyle = '#00ffcc';
+                
+                ctx.fillText(remaining, startX + typedWidth, textY);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.vx = randomRange(-8, 8); this.vy = randomRange(-8, 8);
+                this.life = 1.0; 
+                this.size = randomRange(3, 6);
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.03; }
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Laser {
+            constructor(targetX, targetY) {
+                this.x = canvas.width / 2; this.y = canvas.height / 2;
+                this.targetX = targetX; this.targetY = targetY;
+                this.life = 1.0; this.width = 10;
+            }
+            update() { this.life -= 0.15; this.width *= 0.7; }
+            draw() {
+                if (this.life <= 0) return;
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(0, 255, 255, ${this.life})`;
+                ctx.lineWidth = this.width;
+                ctx.moveTo(this.x, this.y); ctx.lineTo(this.targetX, this.targetY);
+                ctx.stroke();
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.life})`;
+                ctx.beginPath();
+                ctx.arc(this.targetX, this.targetY, 15 * this.life, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Healing effect text
+        class FloatingText {
+            constructor(text, x, y, color) {
+                this.text = text;
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.life = 1.0;
+                this.dy = -1; // float up
+            }
+            update() {
+                this.y += this.dy;
+                this.life -= 0.02;
+            }
+            draw() {
+                if (this.life <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 24px "Share Tech Mono"';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        function drawCore() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            
+            const isFever = combo >= 20;
+            
+            // Pulse speed depends on fever
+            const pulseSpeed = isFever ? 0.05 : 0.01;
+            const pulse = 1 + Math.sin(Date.now() * pulseSpeed) * 0.1;
+            
+            // Core Color
+            let coreColor = '#00ccff';
+            let glowColor = '#00ccff';
+            
+            if (isFever) {
+                // Fever: Burning Red/Orange/Gold
+                coreColor = '#ff3333'; 
+                glowColor = '#ffaa00';
+            } else if (health < 30) {
+                coreColor = '#ff0000';
+                glowColor = '#ff0000';
+            } else if (health < 60) {
+                coreColor = '#ffcc00';
+                glowColor = '#ffcc00';
+            }
+
+            // Outer Ring
+            ctx.beginPath();
+            ctx.strokeStyle = isFever ? `rgba(255, 50, 50, 0.8)` : `rgba(0, 255, 204, ${health / 100})`;
+            ctx.lineWidth = isFever ? 6 : 4;
+            // Fever rotates the ring
+            const rotation = isFever ? Date.now() * 0.005 : 0;
+            ctx.ellipse(cx, cy, 60 * pulse, 60 * pulse, rotation, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Second Ring for Fever
+            if (isFever) {
+                ctx.beginPath();
+                ctx.strokeStyle = `rgba(255, 200, 0, 0.5)`;
+                ctx.lineWidth = 2;
+                ctx.ellipse(cx, cy, 70 * pulse, 70 * pulse, -rotation * 2, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Inner Core
+            ctx.beginPath();
+            ctx.fillStyle = coreColor;
+            ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Glow
+            ctx.shadowBlur = isFever ? 50 : 30;
+            ctx.shadowColor = glowColor;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function createExplosion(x, y, color = '#ff3366') {
+            const count = combo >= 20 ? 30 : 20; // More particles in fever
+            for (let i = 0; i < count; i++) particles.push(new Particle(x, y, color));
+        }
+        
+        function drawBackground() {
+             // 1. Clear Screen
+            const isFever = combo >= 20;
+            
+            // Fever bg is slightly reddish/energetic
+            ctx.fillStyle = isFever ? 'rgba(20, 5, 5, 0.4)' : 'rgba(5, 5, 5, 0.4)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grid Effect for Fever
+            if (isFever) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 50, 50, 0.1)';
+                ctx.lineWidth = 1;
+                const time = Date.now() * 0.001;
+                const gap = 100;
+                
+                // Draw moving grid
+                for (let x = (time * 50) % gap; x < canvas.width; x += gap) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        // --- Game Logic ---
+
+        function loop(timestamp) {
+            if (gameState !== 'PLAYING') {
+                lastTime = timestamp;
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            const settings = DIFFICULTIES[currentDifficulty];
+            
+            drawBackground();
+
+            // Zoom transform
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(ZOOM_LEVEL, ZOOM_LEVEL);
+            ctx.translate(-cx, -cy);
+
+            drawCore();
+
+            spawnTimer += deltaTime;
+            
+            // Spawn Logic
+            if (words.length < 1 && spawnTimer > spawnInterval) {
+                words.push(new Word(settings));
+                spawnTimer = 0;
+                // Cap speed increase slightly
+                if (spawnInterval > 300) spawnInterval -= 20; 
+                if (difficultyMultiplier < 3.0) difficultyMultiplier += 0.005;
+            }
+
+            // Word Update
+            for (let i = words.length - 1; i >= 0; i--) {
+                const word = words[i];
+                const status = word.update(deltaTime);
+
+                if (status === 'hit') {
+                    // Damaged!
+                    health -= word.damage; 
+                    createExplosion(word.x, word.y, '#ff0000');
+                    
+                    // Reset Combo on hit!
+                    if (combo > 0) {
+                        floatingTexts.push(new FloatingText("COMBO BREAK!", word.x, word.y - 20, "#ff0000"));
+                    }
+                    combo = 0;
+                    updateComboUI();
+                    
+                    words.splice(i, 1);
+                    activeWordIndex = -1;
+
+                    if (health <= 0) gameOver();
+                } else {
+                    word.draw(i);
+                }
+            }
+
+            // Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+            // Lasers
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].update();
+                lasers[i].draw();
+                if (lasers[i].life <= 0) lasers.splice(i, 1);
+            }
+            
+            // Floating Texts (Heal/Combo Break)
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                floatingTexts[i].update();
+                floatingTexts[i].draw();
+                if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+            }
+
+            ctx.restore();
+
+            // UI
+            healthDisplay.textContent = `CORE: ${Math.max(0, Math.floor(health))}%`;
+            healthDisplay.style.color = health > 30 ? '#00ffcc' : '#ff0000';
+            
+            requestAnimationFrame(loop);
+        }
+        
+        function updateComboUI() {
+            comboEl.textContent = `COMBO x${combo}`;
+            comboEl.style.opacity = combo > 0 ? 1 : 0.5;
+            
+            if (combo >= 20) {
+                comboEl.style.color = '#ff3333';
+                comboEl.style.textShadow = '0 0 15px #ffaa00';
+                comboEl.textContent += " FEVER!!";
+            } else {
+                comboEl.style.color = '#ffff00';
+                comboEl.style.textShadow = '0 0 10px rgba(255, 255, 0, 0.8)';
+            }
+        }
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                pauseOverlay.classList.remove('hidden');
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                pauseOverlay.classList.add('hidden');
+                lastTime = performance.now();
+            }
+        }
+
+        window.startGame = function(difficulty) {
+            currentDifficulty = difficulty;
+            const settings = DIFFICULTIES[difficulty];
+            
+            gameState = 'PLAYING';
+            score = 0;
+            health = 100;
+            words = [];
+            particles = [];
+            lasers = [];
+            floatingTexts = [];
+            activeWordIndex = -1;
+            
+            spawnTimer = 0;
+            spawnInterval = settings.spawnRate;
+            difficultyMultiplier = 1;
+            
+            combo = 0;
+            updateComboUI();
+            
+            lastTime = performance.now();
+            
+            centerUI.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
+            scoreDisplay.textContent = 'SCORE: 0';
+            scoreDisplay.classList.remove('hidden');
+            healthDisplay.classList.remove('hidden');
+            
+            levelDisplay.textContent = `MODE: ${difficulty}`;
+            levelDisplay.style.color = settings.color;
+            levelDisplay.classList.remove('hidden');
+            
+            controls.classList.remove('hidden');
+            
+            document.getElementById('mobile-input').focus();
+        };
+
+        window.quitGame = function() {
+            gameState = 'MENU';
+            centerUI.classList.remove('hidden');
+            difficultySelect.classList.remove('hidden');
+            retryContainer.classList.add('hidden');
+            
+            pauseOverlay.classList.add('hidden');
+            scoreDisplay.classList.add('hidden');
+            healthDisplay.classList.add('hidden');
+            levelDisplay.classList.add('hidden');
+            controls.classList.add('hidden');
+            finalScoreEl.classList.add('hidden');
+            
+            gameTitle.innerText = "GRAVITY TYPER";
+            gameDesc.classList.remove('hidden');
+            
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            centerUI.classList.remove('hidden');
+            difficultySelect.classList.add('hidden');
+            retryContainer.classList.remove('hidden');
+            
+            controls.classList.add('hidden');
+            gameTitle.innerText = "SYSTEM CRITICAL";
+            gameDesc.classList.add('hidden');
+            finalScoreEl.classList.remove('hidden');
+            finalScoreEl.textContent = `FINAL SCORE: ${score}`;
+        }
+
+        // --- Inputs ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (gameState === 'PLAYING' || gameState === 'PAUSED') {
+                    togglePause();
+                }
+                return;
+            }
+
+            if (gameState !== 'PLAYING') return;
+            
+            const key = e.key.toLowerCase();
+            const settings = DIFFICULTIES[currentDifficulty];
+            
+            const getLetterPos = (wordObj) => {
+                const textWidth = ctx.measureText(wordObj.text).width;
+                ctx.save();
+                ctx.font = '32px "Share Tech Mono"';
+                const width = ctx.measureText(wordObj.text).width;
+                ctx.restore();
+                
+                const letterWidth = width / wordObj.text.length;
+                const offset = (wordObj.typedIndex * letterWidth) - (width / 2);
+                return { x: wordObj.x + offset, y: wordObj.y };
+            };
+            
+            if (words.length > 0) {
+                const word = words[0];
+                
+                if (word.text[word.typedIndex] === key) {
+                    activeWordIndex = 0;
+                    const pos = getLetterPos(word);
+                    lasers.push(new Laser(pos.x, pos.y));
+                    word.typedIndex++;
+                    
+                    if (word.typedIndex >= word.text.length) {
+                        // Word Destroyed
+                        createExplosion(word.x, word.y, combo >= 20 ? '#ffaa00' : '#00ffcc');
+                        words.splice(0, 1);
+                        activeWordIndex = -1;
+                        
+                        // Score & Combo Logic
+                        score += 100 + (combo * 10);
+                        combo++;
+                        updateComboUI();
+                        
+                        // Heal Logic
+                        if (combo % settings.healInterval === 0) {
+                            if (health < 100) {
+                                health = Math.min(100, health + 10);
+                                floatingTexts.push(new FloatingText("HEAL +10%", canvas.width/2/ZOOM_LEVEL, canvas.height/2/ZOOM_LEVEL - 50, "#00ffcc"));
+                            }
+                        }
+
+                        // Animation for combo
+                        comboEl.style.transform = 'translateX(-50%) scale(1.5)';
+                        setTimeout(() => { comboEl.style.transform = 'translateX(-50%) scale(1)'; }, 100);
+                        scoreDisplay.textContent = `SCORE: ${score}`;
+                    }
+                }
+            }
+        });
+
+        pauseBtn.addEventListener('click', togglePause);
+        resumeBtn.addEventListener('click', togglePause);
+        resetBtn.addEventListener('click', () => startGame(currentDifficulty));
+        quitBtn.addEventListener('click', quitGame);
+
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
