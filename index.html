@@ -232,13 +232,13 @@
             </p>
 
             <div id="difficulty-select" class="difficulty-container">
-                <button class="diff-btn easy" onclick="startGame('EASY')">
+                <button class="diff-btn easy" id="btn-easy">
                     EASY<br><span class="text-xs">Beam: 1 Char<br>Interval: 15s</span>
                 </button>
-                <button class="diff-btn normal" onclick="startGame('NORMAL')">
+                <button class="diff-btn normal" id="btn-normal">
                     NORMAL<br><span class="text-xs">Beam: 2 Chars<br>Interval: 12s</span>
                 </button>
-                <button class="diff-btn hard" onclick="startGame('HARD')">
+                <button class="diff-btn hard" id="btn-hard">
                     HARD<br><span class="text-xs">Beam: 3 Chars<br>Interval: 10s</span>
                 </button>
             </div>
@@ -246,10 +246,11 @@
             <div id="final-score" class="text-2xl mb-4 hidden text-[#ff3366]">SCORE: 0</div>
             
             <div id="retry-container" class="hidden">
-                 <button onclick="startGame(currentDifficulty)" class="main-btn">RETRY SAME MODE</button>
+                 <button id="btn-retry" class="main-btn">RETRY SAME MODE</button>
                  <div class="mt-4">
-                    <button onclick="quitGame()" class="text-sm text-gray-400 hover:text-white underline bg-transparent border-none cursor-pointer">SELECT DIFFICULTY</button>
+                    <button id="btn-quit" class="text-sm text-gray-400 hover:text-white underline bg-transparent border-none cursor-pointer">SELECT DIFFICULTY</button>
                  </div>
+                 <div class="text-xs text-gray-500 mt-2">Press Enter to Retry</div>
             </div>
         </div>
     </div>
@@ -349,7 +350,7 @@
         let lasers = []; 
         let enemyBeams = []; 
         let activeWordIndex = -1;
-        let activeBeamIndex = -1; // 現在ロックオンしているビームのインデックス
+        let activeBeamIndex = -1; 
 
         const wordList = [
             "box", "cpu", "net", "web", "app", "git", "api", "hub", "bug", "log", "run", "dev", "css", "png", "svg", "bin",
@@ -406,7 +407,6 @@
                 this.typedIndex = 0;
                 
                 const angle = Math.atan2(targetY - y, targetX - x);
-                // Slower speed for readability and multi-char typing
                 this.speed = 2.0; 
                 this.vx = Math.cos(angle) * this.speed;
                 this.vy = Math.sin(angle) * this.speed;
@@ -430,7 +430,6 @@
                 ctx.save();
                 ctx.translate(this.x, this.y);
                 
-                // Draw Beam/Projectile body
                 const angle = Math.atan2(this.vy, this.vx);
                 ctx.rotate(angle);
                 
@@ -448,17 +447,14 @@
                 
                 ctx.restore();
                 
-                // Draw Character Bubble above/near beam
                 ctx.save();
                 ctx.font = 'bold 24px "Share Tech Mono"';
                 
                 const textWidth = ctx.measureText(this.text).width;
                 const bubbleW = textWidth + 30;
                 
-                // Offset text above the beam
                 ctx.translate(this.x, this.y - 35);
                 
-                // Bubble bg
                 ctx.fillStyle = isLocked ? 'rgba(255, 0, 100, 0.95)' : 'rgba(200, 0, 50, 0.85)';
                 ctx.beginPath();
                 ctx.roundRect(-bubbleW/2, -18, bubbleW, 36, 18);
@@ -467,7 +463,6 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
-                // Text
                 const typed = this.text.substring(0, this.typedIndex);
                 const remaining = this.text.substring(this.typedIndex);
                 const startX = -textWidth / 2;
@@ -475,13 +470,11 @@
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
                 
-                // Typed part (Gray/Dim)
                 ctx.fillStyle = '#ffaaaa'; 
                 ctx.fillText(typed.toUpperCase(), startX, 2);
                 
                 const typedWidth = ctx.measureText(typed.toUpperCase()).width;
                 
-                // Remaining part (White)
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText(remaining.toUpperCase(), startX + typedWidth, 2);
                 
@@ -515,7 +508,6 @@
                 this.beamInterval = settings.beamInterval;
                 this.beamLength = settings.beamLength;
                 
-                // Shoot first beam quickly (between 0.5s and 1.5s after spawn) so it comes from far away
                 this.beamTimer = this.beamInterval - randomRange(500, 1500);
 
                 this.typedIndex = 0;
@@ -941,9 +933,10 @@
             }
         }
 
-        window.startGame = function(difficulty) {
-            currentDifficulty = difficulty;
-            const settings = DIFFICULTIES[difficulty];
+        // Exposed as a function but used via addEventListener below
+        function startGame(difficulty) {
+            currentDifficulty = difficulty || 'NORMAL';
+            const settings = DIFFICULTIES[currentDifficulty];
             
             gameState = 'PLAYING';
             score = 0;
@@ -970,17 +963,19 @@
             scoreDisplay.textContent = 'SCORE: 0';
             scoreDisplay.classList.remove('hidden');
             healthDisplay.classList.remove('hidden');
+            controls.classList.remove('hidden');
             
-            levelDisplay.textContent = `MODE: ${difficulty}`;
+            levelDisplay.textContent = `MODE: ${currentDifficulty}`;
             levelDisplay.style.color = settings.color;
             levelDisplay.classList.remove('hidden');
             
-            controls.classList.remove('hidden');
-            
             document.getElementById('mobile-input').focus();
+            
+            // Re-start loop if needed (though it loops automatically)
+            // requestAnimationFrame(loop); 
         };
 
-        window.quitGame = function() {
+        function quitGame() {
             gameState = 'MENU';
             centerUI.classList.remove('hidden');
             difficultySelect.classList.remove('hidden');
@@ -1004,7 +999,7 @@
             gameState = 'GAMEOVER';
             centerUI.classList.remove('hidden');
             difficultySelect.classList.add('hidden');
-            retryContainer.classList.add('hidden');
+            retryContainer.classList.remove('hidden');
             
             controls.classList.add('hidden');
             gameTitle.innerText = "SYSTEM CRITICAL";
@@ -1013,12 +1008,32 @@
             finalScoreEl.textContent = `FINAL SCORE: ${score}`;
         }
 
-        // --- Inputs ---
+        // --- Inputs & Event Listeners ---
+        
+        // Attach click handlers properly via JS to avoid scope issues
+        document.getElementById('btn-easy').addEventListener('click', () => startGame('EASY'));
+        document.getElementById('btn-normal').addEventListener('click', () => startGame('NORMAL'));
+        document.getElementById('btn-hard').addEventListener('click', () => startGame('HARD'));
+        
+        document.getElementById('btn-retry').addEventListener('click', () => startGame(currentDifficulty));
+        document.getElementById('btn-quit').addEventListener('click', quitGame);
+        
+        document.getElementById('pause-btn').addEventListener('click', togglePause);
+        document.getElementById('reset-btn').addEventListener('click', () => startGame(currentDifficulty));
+        document.getElementById('quit-btn').addEventListener('click', quitGame);
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 if (gameState === 'PLAYING' || gameState === 'PAUSED') {
                     togglePause();
                 }
+                return;
+            }
+            
+            // Allow retry with ENTER key on Game Over screen
+            if (gameState === 'GAMEOVER' && e.key === 'Enter') {
+                startGame(currentDifficulty);
                 return;
             }
 
@@ -1028,29 +1043,23 @@
             const settings = DIFFICULTIES[currentDifficulty];
             
             // --- PRIORITY 1: Enemy Beams ---
-            // 1a. Continue locking on active beam
             if (activeBeamIndex !== -1) {
                 const beam = enemyBeams[activeBeamIndex];
                 if (beam && beam.text[beam.typedIndex] === key) {
-                     // Hit logic for active beam
                      lasers.push(new Laser(beam.x, beam.y));
                      beam.typedIndex++;
                      
                      if (beam.typedIndex >= beam.text.length) {
-                         // Destroyed
                          createExplosion(beam.x, beam.y, '#ffffff');
                          enemyBeams.splice(activeBeamIndex, 1);
                          activeBeamIndex = -1;
                          score += 50;
                          scoreDisplay.textContent = `SCORE: ${score}`;
                      }
-                     return; // Consumed input
+                     return; 
                 }
             } else {
-                // 1b. Search for new beam to lock on
                 let foundBeamIndex = -1;
-                // Find closest beam? Or just first matching?
-                // Let's iterate and find match
                 for(let i=0; i<enemyBeams.length; i++){
                     if(enemyBeams[i].text[0] === key){
                         foundBeamIndex = i;
@@ -1071,11 +1080,10 @@
                          score += 50;
                          scoreDisplay.textContent = `SCORE: ${score}`;
                     }
-                    return; // Consumed input
+                    return; 
                 }
             }
             
-            // If typing a beam, don't allow switching to word unless beam is done
             if (activeBeamIndex !== -1) return;
 
             // --- PRIORITY 2: Words ---
@@ -1092,7 +1100,7 @@
             };
             
             if (words.length > 0) {
-                const word = words[0]; // Assuming 1 word duel mode
+                const word = words[0]; 
                 
                 if (word.text[word.typedIndex] === key) {
                     activeWordIndex = 0;
@@ -1124,11 +1132,7 @@
             }
         });
 
-        pauseBtn.addEventListener('click', togglePause);
-        resumeBtn.addEventListener('click', togglePause);
-        resetBtn.addEventListener('click', () => startGame(currentDifficulty));
-        quitBtn.addEventListener('click', quitGame);
-
+        // Start Loop
         requestAnimationFrame(loop);
     </script>
 </body>
