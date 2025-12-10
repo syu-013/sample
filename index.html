@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gravity Typer - Duel Mode</title>
+    <title>Gravity Typer - Dual Core Input</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -34,6 +34,7 @@
         #score-display { top: 15px; left: 15px; font-size: 20px; z-index: 20; }
         #health-display { top: 45px; left: 15px; font-size: 20px; color: #ff3366; text-shadow: 0 0 5px rgba(255, 51, 102, 0.7); z-index: 20; }
         #level-display { top: 75px; left: 15px; font-size: 16px; color: #ffff00; z-index: 20; }
+        #danger-display { top: 105px; left: 15px; font-size: 16px; color: #ff9900; z-index: 20; }
 
         /* コントロールパネル */
         #controls {
@@ -172,31 +173,23 @@
             justify-content: center;
         }
         .pause-text { font-size: 40px; letter-spacing: 5px; color: #fff; }
-
-        /* 回復エフェクト用 */
-        @keyframes floatUp {
-            0% { transform: translateY(0); opacity: 1; }
-            100% { transform: translateY(-50px); opacity: 0; }
-        }
     </style>
 </head>
 <body>
 
     <canvas id="game-canvas"></canvas>
 
-    <!-- UI Overlay -->
     <div id="score-display" class="ui-overlay hidden">SCORE: 0</div>
     <div id="health-display" class="ui-overlay hidden">CORE: 100%</div>
     <div id="level-display" class="ui-overlay hidden">MODE: NORMAL</div>
+    <div id="danger-display" class="ui-overlay hidden">DANGER: 1.0x</div>
 
-    <!-- Controls (Top Right) -->
     <div id="controls" class="hidden">
         <button id="pause-btn" class="control-btn">PAUSE (Esc)</button>
         <button id="reset-btn" class="control-btn">RETRY</button>
         <button id="quit-btn" class="control-btn">QUIT</button>
     </div>
 
-    <!-- Pause Overlay -->
     <div id="pause-overlay" class="hidden">
         <div class="panel-bg text-center">
             <div class="pause-text mb-4">PAUSED</div>
@@ -204,27 +197,26 @@
         </div>
     </div>
 
-    <!-- Start / Game Over Screen -->
     <div id="center-ui" class="panel-bg">
         <h1 id="game-title" class="glitch">GRAVITY TYPER</h1>
         
         <div id="game-content">
             <p id="game-desc" class="text-sm md:text-base mb-6 text-gray-300">
-                1対1のハイスピード迎撃モード。<br>
-                コンボを繋げてフィーバー＆CORE回復を狙え。<br>
-                優先度: 本体 > ビーム (すべて小文字入力)<br>
+                マルチタスク迎撃システム起動。<br>
+                英単語(本体)と数字(ビーム)は<span class="text-[#00ffcc]">同時にロックオン可能</span>。<br>
+                <span class="text-[#ff3366]">本体: 英単語</span> | <span class="text-[#ffcc00]">ビーム: 数字</span><br>
                 <span class="text-xs text-[#00ffcc] mt-2 block">※キーボード必須 | ESCで一時停止</span>
             </p>
 
             <div id="difficulty-select" class="difficulty-container">
                 <button class="diff-btn easy" id="btn-easy">
-                    EASY<br><span class="text-xs">Beam: 2 Char (15s)<br>Main: 2-5 Chars</span>
+                    EASY<br><span class="text-xs">Beam: 4 Digits<br>Max Diff: 1.8x</span>
                 </button>
                 <button class="diff-btn normal" id="btn-normal">
-                    NORMAL<br><span class="text-xs">Beam: 5 Chars (10s)<br>Main: 5-11 Chars</span>
+                    NORMAL<br><span class="text-xs">Beam: 6 Digits<br>Max Diff: 2.5x</span>
                 </button>
                 <button class="diff-btn hard" id="btn-hard">
-                    HARD<br><span class="text-xs">Beam: 7 Chars (5s)<br>Main: 9-15 Chars</span>
+                    HARD<br><span class="text-xs text-[#ff3366]">Beam: 7 Digits</span><br><span class="text-xs">Max 2 Words<br>Max Diff: 3.5x</span>
                 </button>
             </div>
             
@@ -248,6 +240,7 @@
         const scoreDisplay = document.getElementById('score-display');
         const healthDisplay = document.getElementById('health-display');
         const levelDisplay = document.getElementById('level-display');
+        const dangerDisplay = document.getElementById('danger-display');
         const controls = document.getElementById('controls');
         
         const centerUI = document.getElementById('center-ui');
@@ -267,55 +260,54 @@
         const ZOOM_LEVEL = 0.7; 
 
         // Game Settings
-        // Updated Beam Length (Shorter) and Main Word Length (Longer with range)
         const DIFFICULTIES = {
             'EASY': { 
                 maxWords: 1, 
-                spawnRate: 3000, // 本体 3秒
+                spawnRate: 3000, 
                 speedMin: 0.4, 
                 speedMax: 0.7, 
                 minLength: 2, 
                 maxLength: 5, 
                 damage: 20, 
-                dodgeChance: 0.0, 
-                dodgeForce: 0,
                 healInterval: 5, 
-                beamInterval: 15000, // ビーム 15秒
-                beamLength: 2, 
-                beamSpeed: 0.5, 
-                color: '#00ffcc' 
+                beamInterval: 15000, 
+                beamLength: 4, 
+                beamSpeed: 0.5,
+                color: '#00ffcc',
+                diffCap: 1.8,
+                diffIncrease: 0.0001
             },
             'NORMAL': { 
                 maxWords: 1, 
-                spawnRate: 3000, // 本体 3秒
+                spawnRate: 3000, 
                 speedMin: 0.7, 
                 speedMax: 1.1, 
                 minLength: 5, 
                 maxLength: 11, 
                 damage: 25, 
-                dodgeChance: 0.02, 
-                dodgeForce: 2.5,
                 healInterval: 10, 
-                beamInterval: 10000, // ビーム 10秒
-                beamLength: 5, 
+                beamInterval: 10000, 
+                beamLength: 6,
                 beamSpeed: 0.8,
-                color: '#ffcc00' 
+                color: '#ffcc00',
+                diffCap: 2.5,
+                diffIncrease: 0.00015
             },
             'HARD': { 
-                maxWords: 1, 
-                spawnRate: 3000, // 本体 3秒
+                maxWords: 2, 
+                spawnRate: 2500, 
                 speedMin: 1.1, 
                 speedMax: 1.6, 
                 minLength: 9, 
                 maxLength: 15, 
                 damage: 35, 
-                dodgeChance: 0.05, 
-                dodgeForce: 6.0,
                 healInterval: 20, 
-                beamInterval: 5000, // ビーム 5秒 (HARDのみ短い間隔)
+                beamInterval: 5000, 
                 beamLength: 7, 
                 beamSpeed: 1.0,
-                color: '#ff3366' 
+                color: '#ff3366',
+                diffCap: 3.5,
+                diffIncrease: 0.0002
             }
         };
 
@@ -326,7 +318,6 @@
         let health = 100;
         let lastTime = 0;
         let spawnTimer = 0;
-        let spawnInterval = 3000;
         let difficultyMultiplier = 1;
         let combo = 0;
         
@@ -338,23 +329,20 @@
         let lasers = []; 
         let enemyBeams = []; 
         
-        // Locking System
-        // activeTarget: null | { type: 'WORD' | 'BEAM', index: number }
-        let activeTarget = null;
+        // Locking System - DUAL CHANNEL
+        // ターゲットを別々に管理することで同時入力を可能にする
+        let activeWordTarget = null; // { index: number }
+        let activeBeamTarget = null; // { index: number }
 
         const wordList = [
-            // Very Short (2)
             "go", "to", "do", "it", "at", "on", "in", "up", "if", "is", "of", "no", "we", "us", "me", "my", "hi", "ok", "pi",
-            // Short (3-4)
             "box", "cpu", "net", "web", "app", "git", "api", "hub", "bug", "log", "run", "dev", "css", "png", "svg", "bin",
             "code", "data", "file", "byte", "loop", "node", "java", "ruby", "perl", "bash", "null", "void", "true", "list",
             "grid", "host", "link", "load", "lock", "mail", "mode", "path", "port", "root", "save", "scan", "send", "sync",
-            // Medium (5-7)
             "system", "matrix", "cyber", "flux", "orbit", "laser", "pixel", "virus", "binary", "analog", "vector", "scalar",
             "plasma", "shield", "energy", "force", "light", "sound", "pulse", "static", "galaxy", "planet", "nebula", "comet", 
             "meteor", "class", "method", "return", "throw", "catch", "debug", "deploy", "render", "state", "props", "effect",
             "hacker", "cipher", "crypto", "token", "access", "denied", "grant", "proxy", "server", "client", "socket", "script",
-            // Long & Very Long (8-15)
             "gravity", "quantum", "dimension", "function", "variable", "constant", "boolean", "promise", "interface", "component",
             "firewall", "backdoor", "phishing", "malware", "spyware", "rootkit", "exploit", "protocol", "framework", "database",
             "algorithm", "encryption", "bandwidth", "frequency", "resonance", "simulation", "processor", "interrupt", "exception",
@@ -364,9 +352,8 @@
             "vulnerability", "troubleshooting", "synchronization", "implementation", "transformation"
         ];
         
-        const chars = "abcdefghijklmnopqrstuvwxyz";
-        function getRandomChar() {
-            return chars[Math.floor(Math.random() * chars.length)];
+        function getRandomDigit() {
+            return Math.floor(Math.random() * 10).toString();
         }
 
         function resize() {
@@ -381,7 +368,6 @@
         function getSpawnPoint() {
             const angle = Math.random() * Math.PI * 2;
             const diagonal = Math.sqrt(canvas.width*canvas.width + canvas.height*canvas.height);
-            // Spawn much further away: diagonal/2 / ZOOM + 500
             const radius = (diagonal / 2) / ZOOM_LEVEL + 500; 
 
             return {
@@ -393,10 +379,10 @@
 
         // --- Classes ---
         class EnemyBeam {
-            constructor(x, y, targetX, targetY, length, speed) {
+            constructor(x, y, targetX, targetY, length, speed, multiplier) {
                 this.text = "";
                 for(let i=0; i<length; i++) {
-                    this.text += getRandomChar();
+                    this.text += getRandomDigit();
                 }
                 
                 this.x = x;
@@ -406,7 +392,7 @@
                 this.typedIndex = 0;
                 
                 const angle = Math.atan2(targetY - y, targetX - x);
-                this.speed = speed; 
+                this.speed = speed * Math.min(1.5, multiplier); 
                 this.vx = Math.cos(angle) * this.speed;
                 this.vy = Math.sin(angle) * this.speed;
                 
@@ -424,29 +410,26 @@
             }
             
             draw(index) {
-                const isLocked = (activeTarget && activeTarget.type === 'BEAM' && activeTarget.index === index);
+                // Check Beam Lock
+                const isLocked = (activeBeamTarget && activeBeamTarget.index === index);
                 
                 ctx.save();
                 ctx.translate(this.x, this.y);
-                
                 const angle = Math.atan2(this.vy, this.vx);
                 ctx.rotate(angle);
                 
                 ctx.beginPath();
-                ctx.moveTo(-30, 0); 
-                ctx.lineTo(10, 0);
+                ctx.moveTo(-30, 0); ctx.lineTo(10, 0);
+                // ロックオン時は色を変える（マゼンタ）
                 ctx.strokeStyle = isLocked ? '#ff00ff' : '#ff3366';
                 ctx.lineWidth = 8;
                 ctx.stroke();
                 
-                ctx.beginPath();
-                ctx.arc(10, 0, 8, 0, Math.PI * 2);
-                ctx.fillStyle = '#fff';
-                ctx.fill();
-                
+                ctx.beginPath(); ctx.arc(10, 0, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff'; ctx.fill();
                 ctx.restore();
                 
-                // Text Bubble (LOWERCASE)
+                // Text Bubble (Numeric)
                 ctx.save();
                 ctx.font = 'bold 32px "Share Tech Mono"'; 
                 
@@ -455,36 +438,27 @@
                 const bubbleH = 40;
                 
                 ctx.translate(this.x, this.y - 45);
-                
                 ctx.fillStyle = isLocked ? 'rgba(255, 0, 100, 0.95)' : 'rgba(200, 0, 50, 0.85)';
                 ctx.beginPath();
                 ctx.roundRect(-bubbleW/2, -bubbleH/2, bubbleW, bubbleH, 18);
                 ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
                 
                 const typed = this.text.substring(0, this.typedIndex);
                 const remaining = this.text.substring(this.typedIndex);
                 const startX = -textWidth / 2;
                 
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                
-                ctx.fillStyle = '#ffaaaa'; 
-                ctx.fillText(typed, startX, 2); 
-                
+                ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffaaaa'; ctx.fillText(typed, startX, 2); 
                 const typedWidth = ctx.measureText(typed).width;
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(remaining, startX + typedWidth, 2);
+                ctx.fillStyle = '#ffffff'; ctx.fillText(remaining, startX + typedWidth, 2);
                 
                 ctx.restore();
             }
         }
 
         class Word {
-            constructor(settings) {
+            constructor(settings, multiplier) {
                 const spawn = getSpawnPoint();
                 
                 const candidates = wordList.filter(w => w.length >= settings.minLength && w.length <= settings.maxLength);
@@ -497,35 +471,34 @@
                 this.targetX = canvas.width / 2;
                 this.targetY = canvas.height / 2;
                 
-                this.baseSpeed = randomRange(settings.speedMin, settings.speedMax) * difficultyMultiplier * 1.2; 
+                this.baseSpeed = randomRange(settings.speedMin, settings.speedMax) * multiplier; 
                 this.damage = settings.damage;
                 
-                this.dodgeChance = settings.dodgeChance;
-                this.dodgeForce = settings.dodgeForce;
-                this.dodgeVelocity = { x: 0, y: 0 };
-                this.isDodging = false;
-                this.dodgeTimer = 0;
+                this.dodgeChance = 0;
+                if (currentDifficulty !== 'EASY') {
+                    this.dodgeChance = (multiplier - 1) * 0.1; 
+                }
                 
-                this.beamInterval = settings.beamInterval;
+                this.beamInterval = Math.max(2000, settings.beamInterval / (multiplier * 0.8));
+
                 this.beamLength = settings.beamLength;
                 this.beamSpeed = settings.beamSpeed;
                 
-                // First beam quick trigger
                 this.beamTimer = this.beamInterval - randomRange(1000, 3000); 
 
                 this.typedIndex = 0;
                 this.angle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+                this.multiplierSnapshot = multiplier;
             }
 
             update(deltaTime) {
-                // Beam Logic
                 if (enemyBeams.length > 0) {
-                    this.beamTimer = 0; // Pause timer if beam exists
+                    this.beamTimer = 0; 
                 } else {
                     this.beamTimer += deltaTime;
                     if (this.beamTimer > this.beamInterval) {
                         this.beamTimer = 0;
-                        enemyBeams.push(new EnemyBeam(this.x, this.y, this.targetX, this.targetY, this.beamLength, this.beamSpeed));
+                        enemyBeams.push(new EnemyBeam(this.x, this.y, this.targetX, this.targetY, this.beamLength, this.beamSpeed, this.multiplierSnapshot));
                     }
                 }
 
@@ -536,28 +509,9 @@
                 if (dist < 40) return 'hit';
 
                 const idealAngle = Math.atan2(dy, dx);
-
-                if (this.dodgeForce > 0) {
-                    if (this.isDodging) {
-                        this.dodgeTimer -= deltaTime;
-                        this.dodgeVelocity.x *= 0.95;
-                        this.dodgeVelocity.y *= 0.95;
-                        if (this.dodgeTimer <= 0) this.isDodging = false;
-                    } else {
-                        if (Math.random() < this.dodgeChance) {
-                            this.isDodging = true;
-                            this.dodgeTimer = 500;
-                            const dodgeDir = Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2;
-                            const dodgeAngle = idealAngle + dodgeDir;
-                            this.dodgeVelocity.x = Math.cos(dodgeAngle) * this.dodgeForce * 3; 
-                            this.dodgeVelocity.y = Math.sin(dodgeAngle) * this.dodgeForce * 3;
-                        }
-                    }
-                }
-
                 const moveSpeed = this.baseSpeed * 0.1 * deltaTime;
-                this.x += Math.cos(idealAngle) * moveSpeed + this.dodgeVelocity.x;
-                this.y += Math.sin(idealAngle) * moveSpeed + this.dodgeVelocity.y;
+                this.x += Math.cos(idealAngle) * moveSpeed;
+                this.y += Math.sin(idealAngle) * moveSpeed;
 
                 return 'alive';
             }
@@ -587,7 +541,8 @@
                     drawY = cy + Math.sin(angle) * (hRadius);
                 }
 
-                const isLocked = (activeTarget && activeTarget.type === 'WORD' && activeTarget.index === index);
+                // Check Word Lock
+                const isLocked = (activeWordTarget && activeWordTarget.index === index);
 
                 if (isOffscreen) {
                     this.drawBubble(drawX, drawY, isLocked);
@@ -630,9 +585,7 @@
                 const textWidth = ctx.measureText(this.text).width;
                 const boxHeight = 60;
                 
-                if (this.isDodging) {
-                    ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
-                } else if (isLocked) {
+                if (isLocked) {
                     ctx.fillStyle = 'rgba(100, 0, 50, 0.8)';
                 } else {
                     ctx.fillStyle = 'rgba(0, 50, 50, 0.6)';
@@ -642,7 +595,7 @@
 
                 ctx.save();
                 ctx.strokeStyle = isLocked ? '#ff0055' : '#00ffcc';
-                ctx.setLineDash(this.isDodging ? [2, 10] : [5, 5]);
+                ctx.setLineDash([5, 5]);
                 ctx.lineWidth = isLocked ? 3 : 1;
                 ctx.globalAlpha = 0.4;
                 ctx.beginPath();
@@ -652,7 +605,7 @@
                 
                 ctx.setLineDash([]);
                 ctx.beginPath();
-                const scopeSize = this.isDodging ? (textWidth/2 + 45) : (textWidth/2 + 35);
+                const scopeSize = textWidth/2 + 35;
                 ctx.arc(x, y - 10, scopeSize, 0, Math.PI*2);
                 ctx.stroke();
                 ctx.restore();
@@ -779,7 +732,6 @@
                 glowColor = '#ffcc00';
             }
 
-            // Draw Core Circle
             ctx.beginPath();
             ctx.strokeStyle = isFever ? `rgba(255, 50, 50, 0.8)` : `rgba(0, 255, 204, ${health / 100})`;
             ctx.lineWidth = isFever ? 6 : 4;
@@ -805,7 +757,6 @@
             ctx.fill();
             ctx.shadowBlur = 0;
 
-            // Draw Combo Text in Center
             ctx.save();
             ctx.fillStyle = isFever ? '#ffff00' : '#ffffff';
             ctx.textAlign = 'center';
@@ -856,6 +807,15 @@
 
             const settings = DIFFICULTIES[currentDifficulty];
             
+            if (difficultyMultiplier < settings.diffCap) {
+                difficultyMultiplier += settings.diffIncrease * (deltaTime / 16);
+            } else {
+                difficultyMultiplier = settings.diffCap;
+            }
+
+            let currentSpawnInterval = settings.spawnRate / difficultyMultiplier;
+            if (currentSpawnInterval < 800) currentSpawnInterval = 800;
+
             drawBackground();
 
             const cx = canvas.width / 2;
@@ -870,11 +830,9 @@
 
             spawnTimer += deltaTime;
             
-            // Spawn word logic with 3s cooldown
-            if (words.length < 1 && spawnTimer > spawnInterval) {
-                words.push(new Word(settings));
+            if (words.length < settings.maxWords && spawnTimer > currentSpawnInterval) {
+                words.push(new Word(settings, difficultyMultiplier));
                 spawnTimer = 0; 
-                if (difficultyMultiplier < 3.0) difficultyMultiplier += 0.005;
             }
 
             // Enemy Beams Update
@@ -889,15 +847,17 @@
                     }
                     combo = 0;
                     
-                    if (activeTarget && activeTarget.type === 'BEAM' && activeTarget.index === i) {
-                        activeTarget = null;
+                    // Reset Beam Target
+                    if (activeBeamTarget && activeBeamTarget.index === i) {
+                        activeBeamTarget = null;
                     }
                     
                     enemyBeams.splice(i, 1);
-                    if (activeTarget && activeTarget.type === 'BEAM' && activeTarget.index > i) {
-                        activeTarget.index--;
+                    
+                    // Adjust Index if shifting
+                    if (activeBeamTarget && activeBeamTarget.index > i) {
+                        activeBeamTarget.index--;
                     }
-
                     if (health <= 0) gameOver();
                 } else {
                     beam.draw(i);
@@ -917,19 +877,18 @@
                     }
                     combo = 0;
                     
-                    if (activeTarget && activeTarget.type === 'WORD' && activeTarget.index === i) {
-                        activeTarget = null;
+                    // Reset Word Target
+                    if (activeWordTarget && activeWordTarget.index === i) {
+                        activeWordTarget = null;
                     }
                     
                     words.splice(i, 1);
-                    
-                    // Reset Spawn Timer to enforce cooldown
                     spawnTimer = 0; 
                     
-                    if (activeTarget && activeTarget.type === 'WORD' && activeTarget.index > i) {
-                        activeTarget.index--;
+                    // Adjust Index if shifting
+                    if (activeWordTarget && activeWordTarget.index > i) {
+                        activeWordTarget.index--;
                     }
-
                     if (health <= 0) gameOver();
                 } else {
                     word.draw(i);
@@ -957,6 +916,9 @@
             healthDisplay.textContent = `CORE: ${Math.max(0, Math.floor(health))}%`;
             healthDisplay.style.color = health > 30 ? '#00ffcc' : '#ff0000';
             
+            dangerDisplay.textContent = `DANGER: ${difficultyMultiplier.toFixed(2)}x`;
+            dangerDisplay.classList.remove('hidden');
+            
             requestAnimationFrame(loop);
         }
         
@@ -983,10 +945,12 @@
             lasers = [];
             enemyBeams = [];
             floatingTexts = [];
-            activeTarget = null;
+            
+            // リセット時に両方のターゲットを初期化
+            activeWordTarget = null;
+            activeBeamTarget = null;
             
             spawnTimer = 0;
-            spawnInterval = settings.spawnRate;
             difficultyMultiplier = 1;
             
             combo = 0;
@@ -1004,6 +968,8 @@
             levelDisplay.style.color = settings.color;
             levelDisplay.classList.remove('hidden');
             
+            dangerDisplay.classList.remove('hidden');
+            
             document.getElementById('mobile-input').focus();
         };
 
@@ -1017,6 +983,7 @@
             scoreDisplay.classList.add('hidden');
             healthDisplay.classList.add('hidden');
             levelDisplay.classList.add('hidden');
+            dangerDisplay.classList.add('hidden');
             controls.classList.add('hidden');
             finalScoreEl.classList.add('hidden');
             
@@ -1072,30 +1039,60 @@
             const key = e.key.toLowerCase();
             const settings = DIFFICULTIES[currentDifficulty];
             
-            // STRICT LOCKING LOGIC
+            // --- BRANCHING LOGIC FOR SIMULTANEOUS INPUT ---
             
-            if (activeTarget) {
-                if (activeTarget.type === 'WORD') {
-                    const word = words[activeTarget.index];
+            // 1. BEAM INPUT (Numbers)
+            if (/[0-9]/.test(key)) {
+                if (activeBeamTarget) {
+                    const beam = enemyBeams[activeBeamTarget.index];
+                    if (beam && beam.text[beam.typedIndex] === key) {
+                        lasers.push(new Laser(beam.x, beam.y));
+                        beam.typedIndex++;
+                        if (beam.typedIndex >= beam.text.length) {
+                            createExplosion(beam.x, beam.y, '#ffffff');
+                            enemyBeams.splice(activeBeamTarget.index, 1);
+                            activeBeamTarget = null;
+                            score += 50;
+                            scoreDisplay.textContent = `SCORE: ${score}`;
+                        }
+                    }
+                } else {
+                    // Try to lock new Beam
+                    let foundBeamIndex = -1;
+                    for(let i=0; i<enemyBeams.length; i++){
+                        if(enemyBeams[i].text[0] === key){
+                            foundBeamIndex = i;
+                            break;
+                        }
+                    }
+                    if (foundBeamIndex !== -1) {
+                        activeBeamTarget = { index: foundBeamIndex };
+                        const beam = enemyBeams[foundBeamIndex];
+                        lasers.push(new Laser(beam.x, beam.y));
+                        beam.typedIndex++;
+                        if (beam.typedIndex >= beam.text.length) {
+                             createExplosion(beam.x, beam.y, '#ffffff');
+                             enemyBeams.splice(foundBeamIndex, 1);
+                             activeBeamTarget = null;
+                             score += 50;
+                             scoreDisplay.textContent = `SCORE: ${score}`;
+                        }
+                    }
+                }
+            } 
+            // 2. WORD INPUT (Letters)
+            else if (/[a-z]/.test(key)) {
+                if (activeWordTarget) {
+                    const word = words[activeWordTarget.index];
                     if (word && word.text[word.typedIndex] === key) {
-                        const getLetterPos = (wordObj) => {
-                            const textWidth = ctx.measureText(wordObj.text).width;
-                            const width = ctx.measureText(wordObj.text).width;
-                            const letterW = width / wordObj.text.length;
-                            const offset = (wordObj.typedIndex * letterW) - (width / 2);
-                            return { x: wordObj.x + offset, y: wordObj.y };
-                        };
                         lasers.push(new Laser(word.x, word.y));
-                        
                         word.typedIndex++;
                         if (word.typedIndex >= word.text.length) {
                             createExplosion(word.x, word.y, combo >= 20 ? '#ffaa00' : '#00ffcc');
-                            words.splice(activeTarget.index, 1);
-                            activeTarget = null;
+                            words.splice(activeWordTarget.index, 1);
+                            activeWordTarget = null;
                             
-                            // Cooldown Logic
                             spawnTimer = 0; 
-                            
                             score += 100 + (combo * 10);
                             combo++;
                             if (combo % settings.healInterval === 0) {
@@ -1107,79 +1104,37 @@
                             scoreDisplay.textContent = `SCORE: ${score}`;
                         }
                     }
-                } else if (activeTarget.type === 'BEAM') {
-                    const beam = enemyBeams[activeTarget.index];
-                    if (beam && beam.text[beam.typedIndex] === key) {
-                        lasers.push(new Laser(beam.x, beam.y));
-                        beam.typedIndex++;
-                        if (beam.typedIndex >= beam.text.length) {
-                            createExplosion(beam.x, beam.y, '#ffffff');
-                            enemyBeams.splice(activeTarget.index, 1);
-                            activeTarget = null;
-                            score += 50;
+                } else {
+                    // Try to lock new Word
+                    let foundWordIndex = -1;
+                    for(let i=0; i<words.length; i++){
+                        if(words[i].text[0] === key){
+                            foundWordIndex = i;
+                            break;
+                        }
+                    }
+                    if (foundWordIndex !== -1) {
+                        activeWordTarget = { index: foundWordIndex };
+                        const word = words[foundWordIndex];
+                        lasers.push(new Laser(word.x, word.y));
+                        word.typedIndex++;
+                        if (word.typedIndex >= word.text.length) {
+                            createExplosion(word.x, word.y, combo >= 20 ? '#ffaa00' : '#00ffcc');
+                            words.splice(foundWordIndex, 1);
+                            activeWordTarget = null;
+                            
+                            spawnTimer = 0; 
+                            score += 100 + (combo * 10);
+                            combo++;
+                            if (combo % settings.healInterval === 0) {
+                                if (health < 100) {
+                                    health = Math.min(100, health + 10);
+                                    floatingTexts.push(new FloatingText("HEAL +10%", canvas.width/2/ZOOM_LEVEL, canvas.height/2/ZOOM_LEVEL - 50, "#00ffcc"));
+                                }
+                            }
                             scoreDisplay.textContent = `SCORE: ${score}`;
                         }
                     }
-                }
-            } else {
-                // Priority: Word > Beam
-                
-                let foundWordIndex = -1;
-                for(let i=0; i<words.length; i++){
-                    if(words[i].text[0] === key){
-                        foundWordIndex = i;
-                        break;
-                    }
-                }
-                
-                if (foundWordIndex !== -1) {
-                    activeTarget = { type: 'WORD', index: foundWordIndex };
-                    const word = words[foundWordIndex];
-                    lasers.push(new Laser(word.x, word.y));
-                    word.typedIndex++;
-                    
-                    if (word.typedIndex >= word.text.length) {
-                        createExplosion(word.x, word.y, combo >= 20 ? '#ffaa00' : '#00ffcc');
-                        words.splice(foundWordIndex, 1);
-                        activeTarget = null;
-                        
-                        spawnTimer = 0; 
-                        
-                        score += 100 + (combo * 10);
-                        combo++;
-                        if (combo % settings.healInterval === 0) {
-                            if (health < 100) {
-                                health = Math.min(100, health + 10);
-                                floatingTexts.push(new FloatingText("HEAL +10%", canvas.width/2/ZOOM_LEVEL, canvas.height/2/ZOOM_LEVEL - 50, "#00ffcc"));
-                            }
-                        }
-                        scoreDisplay.textContent = `SCORE: ${score}`;
-                    }
-                    return;
-                }
-                
-                // If no word match, check beam
-                let foundBeamIndex = -1;
-                for(let i=0; i<enemyBeams.length; i++){
-                    if(enemyBeams[i].text[0] === key){
-                        foundBeamIndex = i;
-                        break;
-                    }
-                }
-                
-                if (foundBeamIndex !== -1) {
-                    activeTarget = { type: 'BEAM', index: foundBeamIndex };
-                    const beam = enemyBeams[foundBeamIndex];
-                    lasers.push(new Laser(beam.x, beam.y));
-                    beam.typedIndex++;
-                    if (beam.typedIndex >= beam.text.length) {
-                         createExplosion(beam.x, beam.y, '#ffffff');
-                         enemyBeams.splice(foundBeamIndex, 1);
-                         activeTarget = null;
-                         score += 50;
-                         scoreDisplay.textContent = `SCORE: ${score}`;
-                    }
-                    return;
                 }
             }
         });
